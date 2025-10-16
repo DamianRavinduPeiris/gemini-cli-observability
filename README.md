@@ -269,7 +269,7 @@ When configuring Grafana data sources **in containers**, use the **service names
 
 ---
 
-## 6) Import your dashboard (exact JSON you provided)
+## 6) Import your dashboard (Can customized as per your needs,belown is just a drop-in replacement for most important metrics.)
 
 In Grafana: **Dashboards → New → Import → Paste JSON** → Select your Prometheus/Loki data sources. ([Grafana Labs](https://grafana.com/docs/grafana/latest/dashboards/build-dashboards/import-dashboards/?utm_source=chatgpt.com))
 
