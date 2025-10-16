@@ -1309,6 +1309,12 @@ In Grafana: **Dashboards → New → Import → Paste JSON** → Select your Pro
 ```
 
 ---
+<img width="1911" height="817" alt="image" src="https://github.com/user-attachments/assets/170d5dbf-2a8e-411c-aba6-86b7a388a5ac" />
+<img width="1582" height="752" alt="image" src="https://github.com/user-attachments/assets/4529a958-c0a3-43fb-956f-b62a80e3e019" />
+<img width="1589" height="312" alt="image" src="https://github.com/user-attachments/assets/7219774b-301b-455d-8559-ac4f951fb685" />
+
+
+
 
 ## 7) What the panels calculate (plain English)
 
