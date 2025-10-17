@@ -30,7 +30,21 @@ Create the files below **exactly** as shown.
 
 Make sure to set DEV_NAME and the PROJECT_NAME in the environment variables. By doing so we 
 
-can filter metrics and logs via User name and the Project Name.
+can filter metrics and logs via User name and the Project name.
+
+Set the values.
+
+`echo 'export DEV_NAME="Damian Peiris"' >> ~/.bashrc`
+
+`echo 'export PROJECT_NAME="Gemini Observability"' >> ~/.bashrc`
+
+
+Verify that the values has been set.
+
+`echo $DEV_NAME`
+`echo $PROJECT_NAME`
+
+
 
 ### `docker-compose.yml`
 
