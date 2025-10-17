@@ -2,7 +2,7 @@
 
 # Gemini CLI Observability
 
-## 1) What this stack does
+## 1) Overview
 
 - **Gemini CLI → OTel Collector (OTLP)**
     - **Metrics** exposed by the Collector’s Prometheus exporter on **:9464** → **Prometheus scrapes** it → **Grafana** shows metrics. The Prometheus exporter’s default port is **9464**. ([OpenTelemetry](https://opentelemetry.io/docs/specs/otel/metrics/sdk_exporters/prometheus/?utm_source=chatgpt.com))
@@ -27,6 +27,10 @@ cd ~/gemini-observability
 ```
 
 Create the files below **exactly** as shown.
+
+Make sure to set DEV_NAME and the PROJECT_NAME in the environment variables. By doing so we 
+
+can filter metrics and logs via User name and the Project Name.
 
 ### `docker-compose.yml`
 
@@ -58,8 +62,12 @@ services:
     command: ["--config=/etc/otel-collector-config.yml"]
     volumes:
       - ./otel-collector-config.yml:/etc/otel-collector-config.yml
+    environment:
+      # Pass WSL env vars into the container so the collector can expand them
+      - DEV_NAME=${DEV_NAME}
+      - PROJECT_NAME=${PROJECT_NAME}
     ports:
-      - "4317:4317"  # OTLP gRPC receiver for traces/metrics/logs (we keep this for Gemini CLI)
+      - "4317:4317"  # OTLP gRPC receiver for traces/metrics/logs (from Gemini CLI)
       - "9464:9464"  # Prometheus scrape endpoint exposed by the Collector
     depends_on:
       prometheus:
@@ -85,7 +93,6 @@ services:
 
 volumes:
   grafana-data:
-
 ```
 
 ### `loki-config.yml`
@@ -120,7 +127,6 @@ schema_config:
 
 limits_config:
   max_structured_metadata_size: 50MB
-
 ```
 
 ### `otel-collector-config.yml`
@@ -139,6 +145,9 @@ exporters:
   # Metrics -> scraped by Prometheus
   prometheus:
     endpoint: "0.0.0.0:9464"
+    # Convert resource attributes into Prometheus labels
+    resource_to_telemetry_conversion:
+      enabled: true
 
   # Logs -> Loki native OTLP endpoint
   otlphttp/logs:
@@ -147,11 +156,18 @@ exporters:
       insecure: true
 
 processors:
-  resource/add_service:
+  # Add service/developer/project as resource attributes (read from container env)
+  resource/add_context:
     attributes:
       - action: upsert
         key: service.name
         value: gemini-cli
+      - action: upsert
+        key: developer.name
+        value: ${DEV_NAME}
+      - action: upsert
+        key: project.name
+        value: ${PROJECT_NAME}
   batch:
 
 service:
@@ -159,13 +175,12 @@ service:
     # (Traces pipeline removed)
     metrics:
       receivers: [otlp]
-      processors: [batch]
+      processors: [resource/add_context, batch]
       exporters: [prometheus]
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: [resource/add_context, batch]
       exporters: [otlphttp/logs]
-
 ```
 
 > Loki natively ingests OTLP logs over HTTP; with the OTel Collector, use the otlphttp logs exporter to /otlp. (Grafana Labs)
@@ -181,7 +196,6 @@ scrape_configs:
   - job_name: "otel-collector"
     static_configs:
       - targets: ["otel-collector:9464"]
-
 ```
 
 > Prometheus scrapes the Collector’s exporter on 9464 (the Prometheus exporter’s default). (OpenTelemetry)
@@ -190,6 +204,7 @@ scrape_configs:
 ### (Gemini CLI) `settings.json`
 
 ```json
+
 {
   "context": {
     "fileName": ["AGENT.md"]
@@ -220,8 +235,9 @@ scrape_configs:
     "enabled": true,
     "target": "local",
     "otlpEndpoint": "http://localhost:4317",
-    "useCollector": true,
-    "otlpProtocol": "grpc"
+"useCollector" : true,
+"otlpProtocol" : "grpc",
+"logPrompts" : true
   }
 }
 
@@ -269,1052 +285,17 @@ When configuring Grafana data sources **in containers**, use the **service names
 
 ---
 
-## 6) Import your dashboard (Can customized as per your needs,belown is just a drop-in replacement for most important metrics.)
+## 6) Import your dashboard (This is just shows the most important metrics,you can customize it as per your needs.)
 
 In Grafana: **Dashboards → New → Import → Paste JSON** → Select your Prometheus/Loki data sources. ([Grafana Labs](https://grafana.com/docs/grafana/latest/dashboards/build-dashboards/import-dashboards/?utm_source=chatgpt.com))
 
 **Dashboard JSON (paste exactly):**
 
 ```json
-{
-  "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": {
-          "type": "grafana",
-          "uid": "-- Grafana --"
-        },
-        "enable": true,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
-  },
-  "editable": true,
-  "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
-  "id": 7,
-  "links": [],
-  "panels": [
-    {
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 0
-      },
-      "id": 9,
-      "options": {
-        "dedupStrategy": "none",
-        "enableInfiniteScrolling": false,
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": true
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "ef17l48tlwcg0e"
-          },
-          "expr": "{service_name=~\"${service_name}\"} | event_name=~\"gemini_cli.*\" | session_id=~\"${session}\"",
-          "refId": "A"
-        }
-      ],
-      "title": "Gemini events (latest logs) — filter by session",
-      "type": "logs"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 10
-      },
-      "id": 4,
-      "options": {
-        "displayMode": "lcd",
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "maxVizHeight": 300,
-        "minVizHeight": 16,
-        "minVizWidth": 8,
-        "namePlacement": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "sizing": "auto",
-        "valueMode": "color"
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "ff16timaku1oga"
-          },
-          "expr": "sum by (gen_ai_token_type, gen_ai_request_model) (increase(gen_ai_client_token_usage_sum[1h]))",
-          "legendFormat": "{{gen_ai_request_model}} / {{gen_ai_token_type}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Tokens used in last 1h (GenAI metric)",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ff16timaku1oga"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 10
-      },
-      "id": 1,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "ff16timaku1oga"
-          },
-          "editorMode": "code",
-          "expr": "sum by (model) (\r\n  rate(gemini_cli_api_request_count_total{model=~\"$model\"}[5m])\r\n)",
-          "legendFormat": "{{model}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Requests per second by model",
-      "type": "timeseries"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 18
-      },
-      "id": 5,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "ff16timaku1oga"
-          },
-          "expr": "sum by (function_name) (rate(gemini_cli_tool_call_count_total[5m]))",
-          "legendFormat": "{{function_name}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Tool calls per second by function",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ff16timaku1oga"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 18
-      },
-      "id": 2,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "ff16timaku1oga"
-          },
-          "editorMode": "code",
-          "expr": "sum by (status_code) (\r\n  rate(gemini_cli_api_request_count_total{status_code=~\"4..|5..\", model=~\"$model\"}[5m])\r\n)",
-          "legendFormat": "{{status_code}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Error rate by HTTP status (4xx/5xx)",
-      "type": "timeseries"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "footer": {
-              "reducers": []
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 26
-      },
-      "id": 8,
-      "options": {
-        "cellHeight": "sm",
-        "showHeader": true
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "ff16timaku1oga"
-          },
-          "expr": "topk(10, sum by (gen_ai_request_model) (increase(gen_ai_client_token_usage_sum{gen_ai_token_type=\"output\"}[24h])))",
-          "legendFormat": "{{gen_ai_request_model}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Top models by output tokens (24h)",
-      "transformations": [
-        {
-          "id": "reduce",
-          "options": {
-            "Reducers": [
-              "lastNotNull"
-            ],
-            "labelsToFields": true
-          }
-        }
-      ],
-      "type": "table"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "max": 1,
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": 0
-              },
-              {
-                "color": "green",
-                "value": 0.98
-              }
-            ]
-          },
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 34
-      },
-      "id": 6,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "ff16timaku1oga"
-          },
-          "expr": "sum(rate(gemini_cli_tool_call_count_total{success=\"true\"}[5m])) / sum(rate(gemini_cli_tool_call_count_total[5m]))",
-          "refId": "A"
-        }
-      ],
-      "title": "Tool call success ratio (5m)",
-      "type": "stat"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 34
-      },
-      "id": 7,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "ff16timaku1oga"
-          },
-          "expr": "increase(gemini_cli_session_count_total[24h])",
-          "refId": "A"
-        }
-      ],
-      "title": "Sessions started (last 24h)",
-      "type": "stat"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 34
-      },
-      "id": 11,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "ef17l48tlwcg0e"
-          },
-          "expr": "quantile_over_time(0.95, ({service_name=~\"${service_name}\"} | event_name=\"gemini_cli.tool_call\" | session_id=~\"${session}\" | unwrap duration_ms)[5m])",
-          "legendFormat": "{{function_name}} p95",
-          "refId": "A"
-        }
-      ],
-      "title": "p95 tool-call latency (logs) by function (ms)",
-      "type": "timeseries"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 38
-      },
-      "id": 10,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "ef17l48tlwcg0e"
-          },
-          "expr": "sum(rate({service_name=~\"${service_name}\"} | event_name=\"gemini_cli.user_prompt\" | session_id=~\"${session}\" [5m]))",
-          "legendFormat": "prompts/s",
-          "refId": "A"
-        }
-      ],
-      "title": "User prompts per second (logs)",
-      "type": "timeseries"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "max": 1,
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": 0
-              },
-              {
-                "color": "green",
-                "value": 0.02
-              }
-            ]
-          },
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 0,
-        "y": 46
-      },
-      "id": 12,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "ef17l48tlwcg0e"
-          },
-          "expr": "sum(rate({service_name=~\"${service_name}\"} | event_name=\"gemini_cli.api_error\" | session_id=~\"${session}\" [5m]))",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "ef17l48tlwcg0e"
-          },
-          "expr": "sum(rate({service_name=~\"${service_name}\"} | event_name=\"gemini_cli.api_request\" | session_id=~\"${session}\" [5m]))",
-          "refId": "B"
-        }
-      ],
-      "title": "API error ratio (5m) — from logs",
-      "transformations": [
-        {
-          "id": "reduce",
-          "options": {
-            "reducers": [
-              "lastNotNull"
-            ]
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "binary": {
-              "left": "A",
-              "operator": "/",
-              "replaceFields": true,
-              "right": "B"
-            },
-            "mode": "binary"
-          }
-        }
-      ],
-      "type": "stat"
-    },
-    {
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "footer": {
-              "reducers": []
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 16,
-        "x": 8,
-        "y": 46
-      },
-      "id": 13,
-      "options": {
-        "cellHeight": "sm",
-        "showHeader": true
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "ef17l48tlwcg0e"
-          },
-          "expr": "topk(5, sum by (operation) (count_over_time({service_name=~\"${service_name}\"} | event_name=\"gemini_cli.file_operation\" | session_id=~\"${session}\" [24h])) )",
-          "refId": "A"
-        }
-      ],
-      "title": "File operations by type (24h) — from logs",
-      "transformations": [
-        {
-          "id": "reduce",
-          "options": {
-            "Reducers": [
-              "lastNotNull"
-            ],
-            "labelsToFields": true
-          }
-        }
-      ],
-      "type": "table"
-    }
-  ],
-  "preload": false,
-  "refresh": "5s",
-  "schemaVersion": 42,
-  "tags": [
-    "gemini",
-    "otel",
-    "prometheus",
-    "loki"
-  ],
-  "templating": {
-    "list": [
-      {
-        "allValue": ".*",
-        "current": {
-          "text": [
-            "gemini-2.5-pro"
-          ],
-          "value": [
-            "gemini-2.5-pro"
-          ]
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "ff16timaku1oga"
-        },
-        "includeAll": true,
-        "multi": true,
-        "name": "model",
-        "options": [],
-        "query": "label_values(gemini_cli_api_request_count_total, model)",
-        "refresh": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".+",
-        "current": {
-          "text": "All",
-          "value": [
-            "$__all"
-          ]
-        },
-        "datasource": {
-          "type": "loki",
-          "uid": "ef17l48tlwcg0e"
-        },
-        "description": "Pick service (OTLP → Loki index label). All uses .+ to satisfy LogQL.",
-        "includeAll": true,
-        "multi": true,
-        "name": "service_name",
-        "options": [],
-        "query": "label_values({service_name=~\".+\"}, service_name)",
-        "refresh": 1,
-        "type": "query"
-      },
-      {
-        "current": {
-          "text": ".*",
-          "value": ".*"
-        },
-        "description": "Regex for session_id (structured metadata)",
-        "name": "session",
-        "options": [
-          {
-            "selected": true,
-            "text": ".*",
-            "value": ".*"
-          }
-        ],
-        "query": ".*",
-        "type": "textbox"
-      }
-    ]
-  },
-  "time": {
-    "from": "now-12h",
-    "to": "now"
-  },
-  "timepicker": {},
-  "timezone": "",
-  "title": "Gemini CLI — Metrics & Logs",
-  "uid": "gemini-cli-all",
-  "version": 7
-}
+{  "annotations": {    "list": [      {        "builtIn": 1,        "datasource": {          "type": "grafana",          "uid": "-- Grafana --"        },        "enable": true,        "hide": true,        "iconColor": "rgba(0, 211, 255, 1)",        "name": "Annotations & Alerts",        "type": "dashboard"      }    ]  },  "editable": true,  "fiscalYearStartMonth": 0,  "graphTooltip": 0,  "id": 0,  "links": [],  "panels": [    {      "datasource": {        "type": "prometheus",        "uid": "ff16timaku1oga"      },      "fieldConfig": {        "defaults": {          "mappings": [],          "thresholds": {            "mode": "absolute",            "steps": [              {                "color": "green",                "value": 0              },              {                "color": "red",                "value": 80              }            ]          }        },        "overrides": []      },      "gridPos": {        "h": 8,        "w": 24,        "x": 0,        "y": 0      },      "id": 4,      "options": {        "displayMode": "lcd",        "legend": {          "calcs": [],          "displayMode": "list",          "placement": "bottom",          "showLegend": false        },        "maxVizHeight": 300,        "minVizHeight": 16,        "minVizWidth": 8,        "namePlacement": "auto",        "orientation": "horizontal",        "reduceOptions": {          "calcs": [            "lastNotNull"          ],          "fields": "",          "values": false        },        "showUnfilled": true,        "sizing": "auto",        "valueMode": "color"      },      "pluginVersion": "12.2.0",      "targets": [        {          "datasource": {            "type": "prometheus",            "uid": "ff16timaku1oga"          },          "expr": "sum by (gen_ai_token_type, gen_ai_request_model) (increase(gen_ai_client_token_usage_sum{developer_name=~\"$developer\", project_name=~\"$project\"}[1h]))",          "legendFormat": "{{gen_ai_request_model}} / {{gen_ai_token_type}}",          "refId": "A"        }      ],      "title": "Tokens used in last 1h",      "type": "bargauge"    },    {      "datasource": {        "type": "loki",        "uid": "ef17l48tlwcg0e"      },      "fieldConfig": {        "defaults": {          "color": {            "mode": "thresholds"          },          "mappings": [],          "thresholds": {            "mode": "absolute",            "steps": [              {                "color": "green",                "value": 0              },              {                "color": "red",                "value": 80              }            ]          }        },        "overrides": []      },      "gridPos": {        "h": 10,        "w": 24,        "x": 0,        "y": 8      },      "id": 17,      "options": {        "colorMode": "value",        "graphMode": "area",        "justifyMode": "auto",        "orientation": "auto",        "percentChangeColorMode": "standard",        "reduceOptions": {          "calcs": [            "lastNotNull"          ],          "fields": "",          "values": false        },        "showPercentChange": false,        "textMode": "auto",        "wideLayout": true      },      "pluginVersion": "12.2.0",      "targets": [        {          "datasource": {            "type": "loki",            "uid": "ef17l48tlwcg0e"          },          "direction": "backward",          "editorMode": "code",          "expr": "topk(10, sum by (programming_language) (count_over_time({service_name=~\"${service_name}\"} | event_name=\"gemini_cli.file_operation\" | session_id=~\"${session}\" | developer_name=~\"${developer}\" | project_name=~\"${project}\" | json | programming_language != \"\" [24h])))",          "legendFormat": "{{programming_language}}",          "queryType": "range",          "refId": "A"        }      ],      "title": "Top languages the user have interacted with (24h)",      "transparent": true,      "type": "stat"    },    {      "datasource": {        "type": "prometheus",        "uid": "ff16timaku1oga"      },      "fieldConfig": {        "defaults": {          "custom": {            "align": "auto",            "cellOptions": {              "type": "auto"            },            "footer": {              "reducers": []            },            "inspect": false          },          "mappings": [],          "thresholds": {            "mode": "absolute",            "steps": [              {                "color": "green",                "value": 0              },              {                "color": "red",                "value": 80              }            ]          }        },        "overrides": []      },      "gridPos": {        "h": 8,        "w": 12,        "x": 0,        "y": 18      },      "id": 20,      "options": {        "cellHeight": "sm",        "showHeader": true,        "sortBy": [          {            "desc": true,            "displayName": "extension"          }        ]      },      "pluginVersion": "12.2.0",      "targets": [        {          "datasource": {            "type": "prometheus",            "uid": "ff16timaku1oga"          },          "expr": "topk(10, sum by (extension) (increase(gemini_cli_file_operation_count_total{developer_name=~\"$developer\",project_name=~\"$project\"}[24h])))",          "legendFormat": "{{extension}}",          "refId": "A"        }      ],      "title": "Top extensions by file operations. (24h)",      "transformations": [        {          "id": "reduce",          "options": {            "labelsToFields": true,            "reducers": [              "lastNotNull"            ]          }        }      ],      "type": "table"    },    {      "datasource": {        "type": "prometheus",        "uid": "ff16timaku1oga"      },      "fieldConfig": {        "defaults": {          "custom": {            "align": "auto",            "cellOptions": {              "type": "auto"            },            "footer": {              "reducers": []            },            "inspect": false          },          "mappings": [],          "thresholds": {            "mode": "absolute",            "steps": [              {                "color": "green",                "value": 0              },              {                "color": "red",                "value": 80              }            ]          }        },        "overrides": []      },      "gridPos": {        "h": 8,        "w": 12,        "x": 12,        "y": 18      },      "id": 21,      "options": {        "cellHeight": "sm",        "showHeader": true,        "sortBy": [          {            "desc": true,            "displayName": "mimetype"          }        ]      },      "pluginVersion": "12.2.0",      "targets": [        {          "datasource": {            "type": "prometheus",            "uid": "ff16timaku1oga"          },          "expr": "topk(10, sum by (mimetype) (increase(gemini_cli_file_operation_count_total{developer_name=~\"$developer\",project_name=~\"$project\"}[24h])))",          "legendFormat": "{{mimetype}}",          "refId": "A"        }      ],      "title": "Top mimetypes by file operations (24h)",      "transformations": [        {          "id": "reduce",          "options": {            "labelsToFields": true,            "reducers": [              "lastNotNull"            ]          }        }      ],      "type": "table"    },    {      "datasource": {        "type": "loki",        "uid": "ef17l48tlwcg0e"      },      "fieldConfig": {        "defaults": {},        "overrides": []      },      "gridPos": {        "h": 7,        "w": 24,        "x": 0,        "y": 26      },      "id": 15,      "options": {        "dedupStrategy": "none",        "enableInfiniteScrolling": false,        "enableLogDetails": true,        "prettifyLogMessage": false,        "showCommonLabels": false,        "showLabels": false,        "showTime": true,        "sortOrder": "Descending",        "wrapLogMessage": true      },      "pluginVersion": "12.2.0",      "targets": [        {          "datasource": {            "type": "loki",            "uid": "ef17l48tlwcg0e"          },          "direction": "backward",          "editorMode": "code",          "expr": "{service_name=~\"${service_name}\"} | event_name=\"gemini_cli.user_prompt\" | session_id=~\"${session}\" | developer_name=~\"${developer}\" | project_name=~\"${project}\" | logfmt | line_format \"{{ .prompt }}\"",          "queryType": "range",          "refId": "A"        }      ],      "title": "User prompts",      "type": "logs"    },    {      "datasource": {        "type": "loki",        "uid": "ef17l48tlwcg0e"      },      "fieldConfig": {        "defaults": {},        "overrides": []      },      "gridPos": {        "h": 10,        "w": 24,        "x": 0,        "y": 33      },      "id": 9,      "options": {        "dedupStrategy": "none",        "enableInfiniteScrolling": false,        "enableLogDetails": true,        "prettifyLogMessage": false,        "showCommonLabels": false,        "showLabels": false,        "showTime": true,        "sortOrder": "Descending",        "wrapLogMessage": true      },      "pluginVersion": "12.2.0",      "targets": [        {          "datasource": {            "type": "loki",            "uid": "ef17l48tlwcg0e"          },          "direction": "backward",          "editorMode": "code",          "expr": "{service_name=~\"${service_name}\"} | event_name=~\"gemini_cli.*\" | session_id=~\"${session}\" | developer_name=~\"${developer}\" | project_name=~\"${project}\"",          "queryType": "range",          "refId": "A"        }      ],      "title": "Gemini events  — Filter by session/dev/project",      "type": "logs"    },    {      "datasource": {        "type": "prometheus",        "uid": "ff16timaku1oga"      },      "fieldConfig": {        "defaults": {          "color": {            "mode": "palette-classic"          },          "custom": {            "axisBorderShow": false,            "axisCenteredZero": false,            "axisColorMode": "text",            "axisLabel": "",            "axisPlacement": "auto",            "barAlignment": 0,            "barWidthFactor": 0.6,            "drawStyle": "line",            "fillOpacity": 0,            "gradientMode": "none",            "hideFrom": {              "legend": false,              "tooltip": false,              "viz": false            },            "insertNulls": false,            "lineInterpolation": "linear",            "lineWidth": 1,            "pointSize": 5,            "scaleDistribution": {              "type": "linear"            },            "showPoints": "auto",            "showValues": false,            "spanNulls": false,            "stacking": {              "group": "A",              "mode": "none"            },            "thresholdsStyle": {              "mode": "off"            }          },          "mappings": [],          "thresholds": {            "mode": "absolute",            "steps": [              {                "color": "green",                "value": 0              },              {                "color": "red",                "value": 80              }            ]          },          "unit": "ops"        },        "overrides": []      },      "gridPos": {        "h": 14,        "w": 24,        "x": 0,        "y": 43      },      "id": 1,      "options": {        "legend": {          "calcs": [],          "displayMode": "list",          "placement": "bottom",          "showLegend": true        },        "tooltip": {          "hideZeros": false,          "mode": "single",          "sort": "none"        }      },      "pluginVersion": "12.2.0",      "targets": [        {          "datasource": {            "type": "prometheus",            "uid": "ff16timaku1oga"          },          "editorMode": "code",          "expr": "sum by (model) (rate(gemini_cli_api_request_count_total{model=~\"$model\",developer_name=~\"$developer\",project_name=~\"$project\"}[5m]))",          "legendFormat": "{{model}}",          "range": true,          "refId": "A"        }      ],      "title": "Requests per second by model",      "type": "timeseries"    },    {      "datasource": {        "type": "prometheus",        "uid": "ff16timaku1oga"      },      "fieldConfig": {        "defaults": {          "color": {            "mode": "palette-classic"          },          "custom": {            "axisBorderShow": false,            "axisCenteredZero": false,            "axisColorMode": "text",            "axisLabel": "",            "axisPlacement": "auto",            "barAlignment": 0,            "barWidthFactor": 0.6,            "drawStyle": "line",            "fillOpacity": 0,            "gradientMode": "none",            "hideFrom": {              "legend": false,              "tooltip": false,              "viz": false            },            "insertNulls": false,            "lineInterpolation": "linear",            "lineWidth": 1,            "pointSize": 5,            "scaleDistribution": {              "type": "linear"            },            "showPoints": "auto",            "showValues": false,            "spanNulls": false,            "stacking": {              "group": "A",              "mode": "none"            },            "thresholdsStyle": {              "mode": "off"            }          },          "mappings": [],          "thresholds": {            "mode": "absolute",            "steps": [              {                "color": "green",                "value": 0              },              {                "color": "red",                "value": 80              }            ]          },          "unit": "ops"        },        "overrides": []      },      "gridPos": {        "h": 10,        "w": 24,        "x": 0,        "y": 57      },      "id": 18,      "options": {        "legend": {          "calcs": [],          "displayMode": "list",          "placement": "bottom",          "showLegend": true        },        "tooltip": {          "hideZeros": false,          "mode": "single",          "sort": "none"        }      },      "pluginVersion": "12.2.0",      "targets": [        {          "datasource": {            "type": "prometheus",            "uid": "ff16timaku1oga"          },          "expr": "sum by (operation) (rate(gemini_cli_file_operation_count_total{developer_name=~\"$developer\",project_name=~\"$project\"}[5m]))",          "legendFormat": "{{operation}}",          "refId": "A"        }      ],      "title": "File operations per second by type (metrics)",      "type": "timeseries"    },    {      "datasource": {        "type": "prometheus",        "uid": "ff16timaku1oga"      },      "fieldConfig": {        "defaults": {          "color": {            "mode": "palette-classic"          },          "custom": {            "axisBorderShow": false,            "axisCenteredZero": false,            "axisColorMode": "text",            "axisLabel": "",            "axisPlacement": "auto",            "barAlignment": 0,            "barWidthFactor": 0.6,            "drawStyle": "line",            "fillOpacity": 0,            "gradientMode": "none",            "hideFrom": {              "legend": false,              "tooltip": false,              "viz": false            },            "insertNulls": false,            "lineInterpolation": "linear",            "lineWidth": 1,            "pointSize": 5,            "scaleDistribution": {              "type": "linear"            },            "showPoints": "auto",            "showValues": false,            "spanNulls": false,            "stacking": {              "group": "A",              "mode": "none"            },            "thresholdsStyle": {              "mode": "off"            }          },          "mappings": [],          "thresholds": {            "mode": "absolute",            "steps": [              {                "color": "green",                "value": 0              },              {                "color": "red",                "value": 80              }            ]          }        },        "overrides": []      },      "gridPos": {        "h": 10,        "w": 24,        "x": 0,        "y": 67      },      "id": 5,      "options": {        "legend": {          "calcs": [],          "displayMode": "list",          "placement": "bottom",          "showLegend": true        },        "tooltip": {          "hideZeros": false,          "mode": "single",          "sort": "none"        }      },      "pluginVersion": "12.2.0",      "targets": [        {          "datasource": {            "type": "prometheus",            "uid": "ff16timaku1oga"          },          "expr": "sum by (function_name) (rate(gemini_cli_tool_call_count_total{developer_name=~\"$developer\",project_name=~\"$project\"}[5m]))",          "legendFormat": "{{function_name}}",          "refId": "A"        }      ],      "title": "Tool calls per second by function",      "type": "timeseries"    },    {      "datasource": {        "type": "prometheus",        "uid": "ff16timaku1oga"      },      "fieldConfig": {        "defaults": {          "custom": {            "align": "auto",            "cellOptions": {              "type": "auto"            },            "footer": {              "reducers": []            },            "inspect": false          },          "mappings": [],          "thresholds": {            "mode": "absolute",            "steps": [              {                "color": "green",                "value": 0              },              {                "color": "red",                "value": 80              }            ]          }        },        "overrides": []      },      "gridPos": {        "h": 8,        "w": 24,        "x": 0,        "y": 77      },      "id": 8,      "options": {        "cellHeight": "sm",        "showHeader": true      },      "pluginVersion": "12.2.0",      "targets": [        {          "datasource": {            "type": "prometheus",            "uid": "ff16timaku1oga"          },          "expr": "topk(10, sum by (gen_ai_request_model) (increase(gen_ai_client_token_usage_sum{gen_ai_token_type=\"output\",developer_name=~\"$developer\",project_name=~\"$project\"}[24h])))",          "legendFormat": "{{gen_ai_request_model}}",          "refId": "A"        }      ],      "title": "Top models by output tokens (24h)",      "transformations": [        {          "id": "reduce",          "options": {            "labelsToFields": true,            "reducers": [              "lastNotNull"            ]          }        }      ],      "type": "table"    },    {      "datasource": {        "type": "loki",        "uid": "ef17l48tlwcg0e"      },      "fieldConfig": {        "defaults": {          "color": {            "mode": "thresholds"          },          "mappings": [],          "thresholds": {            "mode": "absolute",            "steps": [              {                "color": "green",                "value": 0              },              {                "color": "red",                "value": 80              }            ]          },          "unit": "chars"        },        "overrides": []      },      "gridPos": {        "h": 9,        "w": 12,        "x": 0,        "y": 85      },      "id": 14,      "options": {        "minVizHeight": 75,        "minVizWidth": 75,        "orientation": "auto",        "reduceOptions": {          "calcs": [            "lastNotNull"          ],          "fields": "",          "values": false        },        "showThresholdLabels": false,        "showThresholdMarkers": true,        "sizing": "auto"      },      "pluginVersion": "12.2.0",      "targets": [        {          "datasource": {            "type": "loki",            "uid": "ef17l48tlwcg0e"          },          "direction": "backward",          "editorMode": "code",          "expr": "avg by () (avg_over_time(({service_name=~\"${service_name}\"} | event_name=\"gemini_cli.user_prompt\" | session_id=~\"${session}\" | developer_name=~\"${developer}\" | project_name=~\"${project}\" | logfmt | unwrap prompt_length | __error__=\"\")[5m]))",          "queryType": "range",          "refId": "A"        }      ],      "title": "Avg user prompt length (5m) — logs",      "type": "gauge"    },    {      "datasource": {        "type": "prometheus",        "uid": "ff16timaku1oga"      },      "fieldConfig": {        "defaults": {          "color": {            "mode": "palette-classic"          },          "custom": {            "axisBorderShow": false,            "axisCenteredZero": false,            "axisColorMode": "text",            "axisLabel": "",            "axisPlacement": "auto",            "barAlignment": 0,            "barWidthFactor": 0.6,            "drawStyle": "line",            "fillOpacity": 0,            "gradientMode": "none",            "hideFrom": {              "legend": false,              "tooltip": false,              "viz": false            },            "insertNulls": false,            "lineInterpolation": "linear",            "lineWidth": 1,            "pointSize": 5,            "scaleDistribution": {              "type": "linear"            },            "showPoints": "auto",            "showValues": false,            "spanNulls": false,            "stacking": {              "group": "A",              "mode": "none"            },            "thresholdsStyle": {              "mode": "off"            }          },          "mappings": [],          "thresholds": {            "mode": "absolute",            "steps": [              {                "color": "green",                "value": 0              },              {                "color": "red",                "value": 80              }            ]          },          "unit": "ops"        },        "overrides": []      },      "gridPos": {        "h": 9,        "w": 12,        "x": 12,        "y": 85      },      "id": 2,      "options": {        "legend": {          "calcs": [],          "displayMode": "list",          "placement": "bottom",          "showLegend": true        },        "tooltip": {          "hideZeros": false,          "mode": "single",          "sort": "none"        }      },      "pluginVersion": "12.2.0",      "targets": [        {          "datasource": {            "type": "prometheus",            "uid": "ff16timaku1oga"          },          "editorMode": "code",          "expr": "sum by (status_code) (rate(gemini_cli_api_request_count_total{status_code=~\"4..|5..\",model=~\"$model\",developer_name=~\"$developer\",project_name=~\"$project\"}[5m]))",          "legendFormat": "{{status_code}}",          "refId": "A"        }      ],      "title": "Error rate by HTTP status (4xx/5xx)",      "type": "timeseries"    }  ],  "preload": false,  "refresh": "5s",  "schemaVersion": 42,  "tags": [    "gemini",    "otel",    "prometheus",    "loki"  ],  "templating": {    "list": [      {        "allValue": ".*",        "current": {          "text": "All",          "value": "$__all"        },        "datasource": {          "type": "prometheus",          "uid": "ff16timaku1oga"        },        "includeAll": true,        "multi": true,        "name": "model",        "options": [],        "query": "label_values(gemini_cli_api_request_count_total, model)",        "refresh": 1,        "type": "query"      },      {        "allValue": ".+",        "current": {          "text": "All",          "value": "$__all"        },        "datasource": {          "type": "loki",          "uid": "ef17l48tlwcg0e"        },        "description": "Pick service (OTLP → Loki index label). All uses .+ to satisfy LogQL.",        "includeAll": true,        "multi": true,        "name": "service_name",        "options": [],        "query": "label_values({service_name=~\".+\"}, service_name)",        "refresh": 1,        "type": "query"      },      {        "current": {          "text": ".*",          "value": ".*"        },        "description": "Regex for session_id (structured metadata)",        "name": "session",        "options": [          {            "selected": true,            "text": ".*",            "value": ".*"          }        ],        "query": ".*",        "type": "textbox"      },      {        "allValue": ".*",        "current": {          "text": [            "Damian Peiris"          ],          "value": [            "Damian Peiris"          ]        },        "datasource": {          "type": "prometheus",          "uid": "ff16timaku1oga"        },        "includeAll": true,        "multi": true,        "name": "developer",        "options": [],        "query": "label_values(gemini_cli_api_request_count_total, developer_name)",        "refresh": 1,        "type": "query"      },      {        "allValue": ".*",        "current": {          "text": [            "Gemini Observability"          ],          "value": [            "Gemini Observability"          ]        },        "datasource": {          "type": "prometheus",          "uid": "ff16timaku1oga"        },        "includeAll": true,        "multi": true,        "name": "project",        "options": [],        "query": "label_values(gemini_cli_api_request_count_total, project_name)",        "refresh": 1,        "type": "query"      }    ]  },  "time": {    "from": "now-24h",    "to": "now"  },  "timepicker": {},  "timezone": "",  "title": "Gemini CLI — Metrics & Logs",  "uid": "gemini-cli-all",  "version": 50}
 ```
 
 ---
-<img width="1911" height="817" alt="image" src="https://github.com/user-attachments/assets/170d5dbf-2a8e-411c-aba6-86b7a388a5ac" />
-<img width="1582" height="752" alt="image" src="https://github.com/user-attachments/assets/4529a958-c0a3-43fb-956f-b62a80e3e019" />
-<img width="1589" height="312" alt="image" src="https://github.com/user-attachments/assets/7219774b-301b-455d-8559-ac4f951fb685" />
-
-
-
 
 ## 7) What the panels calculate (plain English)
 
