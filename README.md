@@ -1170,6 +1170,659 @@ In Grafana: **Dashboards → New → Import → Paste JSON** → Select your Pro
       ],
       "title": "Top tools (read_file/write_file…) (24h) — logs",
       "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ff16timaku1oga"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 103
+      },
+      "id": 23,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ff16timaku1oga"
+          },
+          "editorMode": "code",
+          "expr": "(sum(rate(gemini_cli_tool_call_count_total{success=\"true\",developer_name=~\"$developer\",project_name=~\"$project\"}[5m])) / sum(rate(gemini_cli_tool_call_count_total{developer_name=~\"$developer\",project_name=~\"$project\"}[5m]))) * 100",
+          "legendFormat": "Success %",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Tool-call success rate (5m)",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ff16timaku1oga"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 103
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ff16timaku1oga"
+          },
+          "editorMode": "code",
+          "expr": "sum by (decision) (increase(gemini_cli_tool_call_count_total{decision=~\".+\",developer_name=~\"$developer\",project_name=~\"$project\"}[24h]))",
+          "legendFormat": "{{decision}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Tool-call decisions (24h)",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ff16timaku1oga"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 111
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ff16timaku1oga"
+          },
+          "editorMode": "code",
+          "expr": "sum by (decision) (rate(gemini_cli_tool_call_count_total{decision=~\".+\",developer_name=~\"$developer\",project_name=~\"$project\"}[5m]))",
+          "legendFormat": "{{decision}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Tool calls per second by decision",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ff16timaku1oga"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 121
+      },
+      "id": 26,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ff16timaku1oga"
+          },
+          "editorMode": "code",
+          "expr": "sum by (tool_type) (increase(gemini_cli_tool_call_count_total{tool_type=~\".+\",developer_name=~\"$developer\",project_name=~\"$project\"}[24h]))",
+          "legendFormat": "{{tool_type}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Tool type share (mcp vs native) — 24h",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ff16timaku1oga"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 121
+      },
+      "id": 27,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ff16timaku1oga"
+          },
+          "editorMode": "code",
+          "expr": "sum by (success) (increase(gemini_cli_tool_call_count_total{success=~\".+\",developer_name=~\"$developer\",project_name=~\"$project\"}[24h]))",
+          "legendFormat": "{{success}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Tool calls by success (24h)",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "labelsToFields": true,
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ff16timaku1oga"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 129
+      },
+      "id": 28,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ff16timaku1oga"
+          },
+          "editorMode": "code",
+          "expr": "topk(10, sum by (function_name, model_added_lines) (increase(gemini_cli_tool_call_count_total{model_added_lines=~\".+\",developer_name=~\"$developer\",project_name=~\"$project\"}[24h])))",
+          "legendFormat": "{{function_name}} / model_added={{model_added_lines}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Calls grouped by model_added_lines (24h)",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "labelsToFields": true,
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ff16timaku1oga"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 137
+      },
+      "id": 29,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ff16timaku1oga"
+          },
+          "editorMode": "code",
+          "expr": "topk(10, sum by (function_name, model_removed_lines) (increase(gemini_cli_tool_call_count_total{model_removed_lines=~\".+\",developer_name=~\"$developer\",project_name=~\"$project\"}[24h])))",
+          "legendFormat": "{{function_name}} / model_removed={{model_removed_lines}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Calls grouped by model_removed_lines (24h)",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "labelsToFields": true,
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ff16timaku1oga"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 145
+      },
+      "id": 30,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ff16timaku1oga"
+          },
+          "editorMode": "code",
+          "expr": "topk(10, sum by (function_name, user_added_lines) (increase(gemini_cli_tool_call_count_total{user_added_lines=~\".+\",developer_name=~\"$developer\",project_name=~\"$project\"}[24h])))",
+          "legendFormat": "{{function_name}} / user_added={{user_added_lines}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Calls grouped by user_added_lines (24h)",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "labelsToFields": true,
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ff16timaku1oga"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 153
+      },
+      "id": 31,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ff16timaku1oga"
+          },
+          "editorMode": "code",
+          "expr": "topk(10, sum by (function_name, user_removed_lines) (increase(gemini_cli_tool_call_count_total{user_removed_lines=~\".+\",developer_name=~\"$developer\",project_name=~\"$project\"}[24h])))",
+          "legendFormat": "{{function_name}} / user_removed={{user_removed_lines}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Calls grouped by user_removed_lines (24h)",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "labelsToFields": true,
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        }
+      ],
+      "type": "table"
     }
   ],
   "preload": false,
@@ -1240,12 +1893,8 @@ In Grafana: **Dashboards → New → Import → Paste JSON** → Select your Pro
       {
         "allValue": ".*",
         "current": {
-          "text": [
-            "Damian Peiris"
-          ],
-          "value": [
-            "Damian Peiris"
-          ]
+          "text": "All",
+          "value": "$__all"
         },
         "datasource": {
           "type": "prometheus",
@@ -1262,12 +1911,8 @@ In Grafana: **Dashboards → New → Import → Paste JSON** → Select your Pro
       {
         "allValue": ".*",
         "current": {
-          "text": [
-            "Gemini Observability"
-          ],
-          "value": [
-            "Gemini Observability"
-          ]
+          "text": "All",
+          "value": "$__all"
         },
         "datasource": {
           "type": "prometheus",
@@ -1284,14 +1929,14 @@ In Grafana: **Dashboards → New → Import → Paste JSON** → Select your Pro
     ]
   },
   "time": {
-    "from": "now-24h",
+    "from": "now-7d",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
   "title": "Gemini CLI — Metrics & Logs",
   "uid": "gemini-cli-all",
-  "version": 77
+  "version": 83
 }
 ```
 
