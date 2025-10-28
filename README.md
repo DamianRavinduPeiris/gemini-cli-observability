@@ -1971,6 +1971,18 @@ In Grafana: **Dashboards → New → Import → Paste JSON** → Select your Pro
 
 <img width="1899" height="681" alt="image" src="https://github.com/user-attachments/assets/fd60c707-dd65-4464-951f-57275b95ca68" />
 
+<img width="1885" height="401" alt="image" src="https://github.com/user-attachments/assets/83d58e45-9df2-44b6-83e1-9e4646bf80bd" />
+
+<img width="1898" height="290" alt="image" src="https://github.com/user-attachments/assets/986fc294-96f3-421c-9eae-0d418c06a50f" />
+
+<img width="1864" height="381" alt="image" src="https://github.com/user-attachments/assets/5ba9db93-4010-41d7-99f8-6873f7a4ed1d" />
+
+<img width="1877" height="230" alt="image" src="https://github.com/user-attachments/assets/289ad187-f557-4041-8d66-63df9e21ce4e" />
+
+
+
+
+
 
 
 
