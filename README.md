@@ -175,6 +175,7 @@ exporters:
     connection_string: ${AZURE_MONITOR_CONNECTION_STRING}
 
 processors:
+  # Add context like service, developer, project
   resource/add_context:
     attributes:
       - action: upsert
@@ -186,18 +187,36 @@ processors:
       - action: upsert
         key: project.name
         value: ${PROJECT_NAME}
+
+  # NEW ΓÇö promote numeric attributes (lines added/removed) into standalone metrics
+  transform/add_lines_metrics:
+    metric_statements:
+      - context: datapoint
+        statements:
+          # Promote numeric attributes to dedicated Prometheus metrics
+          - set(metric.name, "gemini_cli_tool_user_added_lines_total") where IsSet(attributes["user_added_lines"])
+          - set(value, attributes["user_added_lines"])
+          - set(metric.name, "gemini_cli_tool_user_removed_lines_total") where IsSet(attributes["user_removed_lines"])
+          - set(value, attributes["user_removed_lines"])
+          - set(metric.name, "gemini_cli_tool_model_added_lines_total") where IsSet(attributes["model_added_lines"])
+          - set(value, attributes["model_added_lines"])
+          - set(metric.name, "gemini_cli_tool_model_removed_lines_total") where IsSet(attributes["model_removed_lines"])
+          - set(value, attributes["model_removed_lines"])
+
   batch:
 
 service:
   pipelines:
     metrics:
       receivers: [otlp]
-      processors: [resource/add_context, batch]
-      exporters: [prometheus, azuremonitor]   # < Azure + Prometheus
+      processors: [resource/add_context, transform/add_lines_metrics, batch]
+      exporters: [prometheus, azuremonitor]
+
     logs:
       receivers: [otlp]
       processors: [resource/add_context, batch]
-      exporters: [otlphttp/logs, azuremonitor]  # <Azure + Loki
+      exporters: [otlphttp/logs, azuremonitor]
+
 ```
 
 > Loki natively ingests OTLP logs over HTTP; with the OTel Collector, use the otlphttp logs exporter to /otlp. (Grafana Labs)
